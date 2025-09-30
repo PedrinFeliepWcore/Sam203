@@ -88,7 +88,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
     // Verificar se playlist pertence ao usuário
     const [playlistRows] = await db.execute(
-      `SELECT id FROM playlists 
+      `SELECT id FROM playlists
        WHERE id = ? AND (codigo_stm = ? OR codigo_stm IN (
          SELECT codigo_cliente FROM streamings WHERE codigo_cliente = ?
        ))`,
@@ -109,26 +109,47 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
     // Atualizar vídeos da playlist se fornecidos
     if (videos && Array.isArray(videos)) {
-      // Remover vídeos existentes da playlist
+      // Verificar se tabela playlist_videos existe, se não criar
+      try {
+        await db.execute('SELECT 1 FROM playlist_videos LIMIT 1');
+      } catch (tableError) {
+        // Criar tabela playlist_videos
+        await db.execute(`
+          CREATE TABLE IF NOT EXISTS playlist_videos (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            playlist_id INT NOT NULL,
+            video_id INT NOT NULL,
+            ordem INT NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_playlist (playlist_id),
+            INDEX idx_video (video_id),
+            UNIQUE KEY unique_playlist_video_ordem (playlist_id, video_id, ordem)
+          )
+        `);
+        console.log('✅ Tabela playlist_videos criada com sucesso');
+      }
+
+      // Remover vídeos existentes da playlist (apenas da tabela intermediária)
       await db.execute(
-        'UPDATE videos SET playlist_id = NULL WHERE playlist_id = ?',
+        'DELETE FROM playlist_videos WHERE playlist_id = ?',
         [playlistId]
       );
 
-      // Adicionar novos vídeos
+      // Adicionar novos vídeos (permitindo duplicatas com ordem diferente)
       for (let i = 0; i < videos.length; i++) {
         const video = videos[i];
         await db.execute(
-          'UPDATE videos SET playlist_id = ?, ordem_playlist = ? WHERE id = ? AND codigo_cliente = ?',
-          [playlistId, i, video.id, userId]
+          'INSERT INTO playlist_videos (playlist_id, video_id, ordem) VALUES (?, ?, ?)',
+          [playlistId, video.id, i]
         );
       }
 
       // Atualizar estatísticas da playlist
       const [statsRows] = await db.execute(
-        `SELECT COUNT(*) as total_videos, SUM(duracao) as duracao_total
-         FROM videos 
-         WHERE playlist_id = ?`,
+        `SELECT COUNT(DISTINCT pv.id) as total_videos, SUM(v.duracao) as duracao_total
+         FROM playlist_videos pv
+         INNER JOIN videos v ON pv.video_id = v.id
+         WHERE pv.playlist_id = ?`,
         [playlistId]
       );
 
@@ -174,7 +195,7 @@ router.get('/:id/videos', authMiddleware, async (req, res) => {
 
     // Verificar se playlist pertence ao usuário
     const [playlistRows] = await db.execute(
-      `SELECT id FROM playlists 
+      `SELECT id FROM playlists
        WHERE id = ? AND (codigo_stm = ? OR codigo_stm IN (
          SELECT codigo_cliente FROM streamings WHERE codigo_cliente = ?
        ))`,
@@ -185,28 +206,64 @@ router.get('/:id/videos', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Playlist não encontrada' });
     }
 
-    // Buscar vídeos da playlist
-    const [rows] = await db.execute(
-      `SELECT 
-        v.id,
-        v.nome,
-        v.url,
-        v.caminho,
-        v.duracao,
-        v.tamanho_arquivo as tamanho,
-        v.bitrate_video,
-        v.formato_original,
-        v.codec_video,
-        v.is_mp4,
-        v.compativel,
-        v.ordem_playlist
-       FROM videos v
-       WHERE v.playlist_id = ? AND (v.codigo_cliente = ? OR v.codigo_cliente IN (
-         SELECT codigo FROM streamings WHERE codigo_cliente = ?
-       ))
-       ORDER BY v.ordem_playlist ASC, v.id ASC`,
-      [playlistId, userId, userId]
-    );
+    // Verificar se tabela playlist_videos existe
+    let useNewTable = false;
+    try {
+      await db.execute('SELECT 1 FROM playlist_videos LIMIT 1');
+      useNewTable = true;
+    } catch (tableError) {
+      useNewTable = false;
+    }
+
+    let rows;
+    if (useNewTable) {
+      // Buscar vídeos da playlist usando tabela intermediária
+      [rows] = await db.execute(
+        `SELECT
+          v.id,
+          v.nome,
+          v.url,
+          v.caminho,
+          v.duracao,
+          v.tamanho_arquivo as tamanho,
+          v.bitrate_video,
+          v.formato_original,
+          v.codec_video,
+          v.is_mp4,
+          v.compativel,
+          pv.ordem as ordem_playlist
+         FROM playlist_videos pv
+         INNER JOIN videos v ON pv.video_id = v.id
+         WHERE pv.playlist_id = ? AND (v.codigo_cliente = ? OR v.codigo_cliente IN (
+           SELECT codigo FROM streamings WHERE codigo_cliente = ?
+         ))
+         ORDER BY pv.ordem ASC`,
+        [playlistId, userId, userId]
+      );
+    } else {
+      // Fallback para sistema antigo (playlist_id na tabela videos)
+      [rows] = await db.execute(
+        `SELECT
+          v.id,
+          v.nome,
+          v.url,
+          v.caminho,
+          v.duracao,
+          v.tamanho_arquivo as tamanho,
+          v.bitrate_video,
+          v.formato_original,
+          v.codec_video,
+          v.is_mp4,
+          v.compativel,
+          v.ordem_playlist
+         FROM videos v
+         WHERE v.playlist_id = ? AND (v.codigo_cliente = ? OR v.codigo_cliente IN (
+           SELECT codigo FROM streamings WHERE codigo_cliente = ?
+         ))
+         ORDER BY v.ordem_playlist ASC, v.id ASC`,
+        [playlistId, userId, userId]
+      );
+    }
 
     // Formatar resposta para compatibilidade com frontend
     const videos = rows.map(video => ({
@@ -268,11 +325,20 @@ router.delete('/:id', authMiddleware, async (req, res) => {
       });
     }
 
-    // Remover vídeos da playlist (apenas limpar referência)
-    await db.execute(
-      'UPDATE videos SET playlist_id = NULL, ordem_playlist = NULL WHERE playlist_id = ?',
-      [playlistId]
-    );
+    // Remover vídeos da playlist
+    try {
+      // Tentar remover da tabela intermediária primeiro
+      await db.execute(
+        'DELETE FROM playlist_videos WHERE playlist_id = ?',
+        [playlistId]
+      );
+    } catch (tableError) {
+      // Fallback para sistema antigo
+      await db.execute(
+        'UPDATE videos SET playlist_id = NULL, ordem_playlist = NULL WHERE playlist_id = ?',
+        [playlistId]
+      );
+    }
 
     // Remover playlist
     await db.execute(

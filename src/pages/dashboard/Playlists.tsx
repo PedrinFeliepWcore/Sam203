@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, Play, Trash2, Edit2, Save, X, Plus, List, Radio, Square, Activity, Users, Clock, Zap, Eye, ExternalLink, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
+import { ChevronLeft, Play, Trash2, CreditCard as Edit2, Save, X, Plus, List, Radio, Square, Activity, Users, Clock, Zap, Eye, ExternalLink, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
@@ -61,7 +61,7 @@ interface TransmissionStatus {
   };
 }
 
-function SortableVideoItem({ video, onRemove }: { video: Video; onRemove: (id: number) => void }) {
+function SortableVideoItem({ video, index, onRemove }: { video: Video; index: number; onRemove: (index: number) => void }) {
   const {
     attributes,
     listeners,
@@ -69,7 +69,7 @@ function SortableVideoItem({ video, onRemove }: { video: Video; onRemove: (id: n
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: video.id });
+  } = useSortable({ id: `video-${index}` });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -137,7 +137,7 @@ function SortableVideoItem({ video, onRemove }: { video: Video; onRemove: (id: n
       </div>
 
       <button
-        onClick={() => onRemove(video.id)}
+        onClick={() => onRemove(index)}
         className="text-red-600 hover:text-red-800 p-1"
         title="Remover da playlist"
       >
@@ -413,16 +413,15 @@ const Playlists: React.FC = () => {
   };
 
   const addVideoToPlaylist = (video: Video) => {
-    if (playlistVideos.find(v => v.id === video.id)) {
-      toast.warning('Vídeo já está na playlist');
-      return;
-    }
-
+    // Permitir adicionar o mesmo vídeo múltiplas vezes
     setPlaylistVideos(prev => [...prev, video]);
   };
 
-  const removeVideoFromPlaylist = (videoId: number) => {
-    setPlaylistVideos(prev => prev.filter(v => v.id !== videoId));
+  const removeVideoFromPlaylist = (index: number) => {
+    // Remover vídeo pelo índice (permitir duplicatas)
+    setPlaylistVideos(prev => {
+      return [...prev.slice(0, index), ...prev.slice(index + 1)];
+    });
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -430,8 +429,9 @@ const Playlists: React.FC = () => {
 
     if (over && active.id !== over.id) {
       setPlaylistVideos(prev => {
-        const oldIndex = prev.findIndex(video => video.id === active.id);
-        const newIndex = prev.findIndex(video => video.id === over.id);
+        // Extrair índices dos IDs (formato: "video-N")
+        const oldIndex = parseInt(active.id.toString().replace('video-', ''));
+        const newIndex = parseInt(over.id.toString().replace('video-', ''));
 
         return arrayMove(prev, oldIndex, newIndex);
       });
@@ -972,7 +972,7 @@ const Playlists: React.FC = () => {
               onDragEnd={handleDragEnd}
             >
               <SortableContext
-                items={playlistVideos.map(video => video.id)}
+                items={playlistVideos.map((_, index) => `video-${index}`)}
                 strategy={verticalListSortingStrategy}
               >
                 <div className="max-h-96 overflow-y-auto space-y-2">
@@ -983,10 +983,11 @@ const Playlists: React.FC = () => {
                       <p className="text-sm">Adicione vídeos da lista ao lado</p>
                     </div>
                   ) : (
-                    playlistVideos.map((video) => (
+                    playlistVideos.map((video, index) => (
                       <SortableVideoItem
-                        key={video.id}
+                        key={`video-${index}`}
                         video={video}
+                        index={index}
                         onRemove={removeVideoFromPlaylist}
                       />
                     ))

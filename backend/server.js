@@ -347,7 +347,6 @@ app.use('/api/agendamentos', agendamentosRoutes);
 app.use('/api/comerciais', comerciaisRoutes);
 app.use('/api/downloadyoutube', downloadyoutubeRoutes);
 app.use('/api/espectadores', espectadoresRoutes);
-app.use('/api/streaming', streamingRoutes);
 app.use('/api/relay', relayRoutes);
 app.use('/api/logos', logosRoutes);
 app.use('/api/transmission-settings', transmissionSettingsRoutes);
