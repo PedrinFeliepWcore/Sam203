@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import {
-  Menu, FileVideo, LogOut, User, Settings, Bell, Megaphone, Radio, Users,
+  Menu, FileVideo, LogOut, User, Settings, Megaphone, Radio, Users,
   ArrowLeftRight, Play, Home, Wifi, Calendar, List, Youtube, Server,
   Smartphone, ChevronDown, Search, Zap
 } from 'lucide-react';
@@ -212,58 +212,6 @@ const DashboardLayout: React.FC = () => {
             </div>
           </nav>
 
-          {/* User section */}
-          <div className="px-4 py-4 border-t border-gray-200">
-            <div className="relative">
-              <button
-                onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center w-full px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg flex items-center justify-center mr-3">
-                  <User className="h-4 w-4 text-white" />
-                </div>
-                <div className="flex-1 text-left">
-                  <div className="text-sm font-medium text-gray-900 truncate">
-                    {user?.nome || 'Usuário'}
-                  </div>
-                  <div className="text-xs text-gray-500 truncate">
-                    @{user?.usuario || user?.email?.split('@')[0] || 'usuario'}
-                  </div>
-                </div>
-                <ChevronDown className="h-4 w-4 text-gray-400" />
-              </button>
-
-              {/* User dropdown */}
-              <AnimatePresence>
-                {showUserMenu && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-lg shadow-lg border border-gray-200 py-2"
-                  >
-                    <div className="px-4 py-2 border-b border-gray-100">
-                      <div className="text-sm font-medium text-gray-900">{user?.nome}</div>
-                      <div className="text-xs text-gray-500">{user?.email}</div>
-                      {user?.tipo && (
-                        <span className={`inline-block mt-1 text-xs px-2 py-1 rounded-full ${user.tipo === 'revenda' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
-                          }`}>
-                          {user.tipo === 'revenda' ? 'Revenda' : 'Streaming'}
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      onClick={logout}
-                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      <LogOut className="h-4 w-4 mr-3" />
-                      Sair
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
         </div>
       </aside>
 
@@ -310,17 +258,11 @@ const DashboardLayout: React.FC = () => {
                 )}
               </div>
 
-              {/* Notifications */}
-              <button className="p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 relative">
-                <Bell className="h-5 w-5" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-              </button>
-
-              {/* User avatar */}
+              {/* User menu */}
               <div className="relative">
                 <button
                   onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors"
                 >
                   <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg flex items-center justify-center">
                     <User className="h-4 w-4 text-white" />
@@ -330,11 +272,42 @@ const DashboardLayout: React.FC = () => {
                       {user?.nome || 'Usuário'}
                     </div>
                     <div className="text-xs text-gray-500">
-                      {user?.tipo === 'revenda' ? 'Revenda' : 'Streaming'} • @{user?.usuario || user?.email?.split('@')[0] || 'usuario'}
+                      @{user?.usuario || user?.email?.split('@')[0] || 'usuario'}
                     </div>
                   </div>
-                  {user?.tipo === 'revenda' ? 'Conta de Revenda' : 'Conta de Streaming'}
+                  <ChevronDown className="h-4 w-4 text-gray-400" />
                 </button>
+
+                {/* User dropdown */}
+                <AnimatePresence>
+                  {showUserMenu && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50"
+                    >
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <div className="text-sm font-medium text-gray-900">{user?.nome || 'Usuário'}</div>
+                        <div className="text-xs text-gray-500">{user?.email}</div>
+                        {user?.tipo && (
+                          <span className={`inline-block mt-2 text-xs px-2 py-1 rounded-full ${
+                            user.tipo === 'revenda' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                          }`}>
+                            {user.tipo === 'revenda' ? 'Revenda' : 'Streaming'}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={logout}
+                        className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <LogOut className="h-4 w-4 mr-3" />
+                        Sair
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
           </div>
